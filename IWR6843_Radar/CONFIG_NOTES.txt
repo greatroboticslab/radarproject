@@ -1,0 +1,179 @@
+================================================================
+IWR6843 AOP EVM - Configuration Reference Notes
+================================================================
+Last updated: 2026-06-08
+Hardware: Texas Instruments IWR6843 AOP EVM (60 GHz mmWave radar)
+================================================================
+
+
+--- QUICK START ---
+
+1. Install CP210x USB driver (Silicon Labs) so the two COM ports appear
+2. Run iwr6843_visualizer.py as Administrator (required for COM port access)
+3. Set Config COM = lower COM number, Data COM = higher COM number
+4. Click Connect & Start
+
+
+--- COM PORT SETUP ---
+
+The EVM appears as TWO COM ports via a Silicon Labs CP2105 chip:
+  Enhanced COM Port  = CONFIG port  (baud: 115200)  <- lower COM#
+  Standard COM Port  = DATA port    (baud: 921600)  <- higher COM#
+
+If no COM ports appear:
+  - Check DIP switches: all 8 must be OFF (SOP=000, flash boot mode)
+  - Install CP210x VCP driver from silabs.com
+  - Must use a data-capable USB cable (not charge-only)
+  - Plug directly into PC, not a USB hub
+  - Run the Python script as Administrator
+
+
+--- CONFIG FILE FORMAT ---
+
+Commands are sent line by line over the config serial port.
+Lines starting with % are comments and are ignored.
+sensorStop must always be the first command.
+sensorStart must always be the last command.
+
+
+--- PROFILECFG EXPLAINED ---
+
+profileCfg <profileId> <startFreq> <idleTime> <adcStartTime> <rampEndTime>
+           <txOutPower> <txPhaseShifter> <freqSlopeConst> <txStartTime>
+           <numAdcSamples> <digOutSampleRate> <hpfCornerFreq1> <hpfCornerFreq2>
+           <rxGain>
+
+  profileId       - always 0 for single profile
+  startFreq       - start frequency in GHz (60 for IWR6843)
+  idleTime        - time between chirps in microseconds
+  adcStartTime    - delay before ADC sampling starts (us)
+  rampEndTime     - total chirp duration in microseconds
+  txOutPower      - TX power reduction (0 = max power)
+  txPhaseShifter  - phase offset (0 = none)
+  freqSlopeConst  - how fast frequency ramps up (MHz/us)
+                    higher = wider bandwidth = better range resolution
+                    max safe value for IWR6843: ~99 MHz/us
+  txStartTime     - TX start offset (us)
+  numAdcSamples   - number of samples per chirp (64/128/192/256)
+                    fewer samples = shorter max range, less processing
+  digOutSampleRate - ADC sample rate in ksps
+  hpfCornerFreq1  - high pass filter (0=lowest, keeps close targets)
+  hpfCornerFreq2  - high pass filter stage 2 (0=lowest)
+  rxGain          - receiver gain in register units (158 = ~48dB, max)
+
+Key derived values:
+  Useful ramp time    = rampEndTime - adcStartTime
+  Bandwidth           = freqSlopeConst x useful ramp time
+  Range resolution    = 3e8 / (2 x bandwidth_Hz)   [speed of light / 2B]
+  Max range           = range_resolution x numAdcSamples
+
+
+--- FRAMECFG EXPLAINED ---
+
+frameCfg <chirpStartIdx> <chirpEndIdx> <numLoops> <numFrames>
+         <framePeriodicity_ms> <triggerSelect> <frameTriggerDelay>
+
+  chirpStartIdx     - first chirp index (0)
+  chirpEndIdx       - last chirp index (2, for 3 TX antennas)
+  numLoops          - how many times to repeat the chirp set per frame
+                      more loops = better velocity resolution
+  numFrames         - 0 = run forever
+  framePeriodicity  - time between frames in ms (50 = 20fps, 33 = 30fps)
+  triggerSelect     - 1 = software trigger (automatic)
+
+
+--- CFARCFG EXPLAINED ---
+
+cfarCfg <subFrameIdx> <procDirection> <mode> <noiseWin> <guardLen>
+        <divShift> <cyclic> <thresholdScale> <peakGrouping>
+
+  procDirection   - 0 = range CFAR, 1 = Doppler CFAR
+  thresholdScale  - detection sensitivity (lower = more sensitive, more detections)
+                    default: 15, hand detection: 10, very sensitive: 8
+                    too low causes false detections from noise
+
+
+--- CFARFOVCFG EXPLAINED ---
+
+cfarFovCfg <subFrameIdx> <procDirection> <min> <max>
+
+  direction 0 = range (meters)     e.g. 0 to 1.0 for 1 meter range
+  direction 1 = velocity (m/s)     e.g. -3.0 to 3.0 for hand speed
+
+
+--- CLUTTERREMOVAL ---
+
+clutterRemoval -1 0   <- OFF: detects stationary AND moving objects
+clutterRemoval -1 1   <- ON:  removes stationary background, only shows moving objects
+
+For hand detection: OFF (hands can hover still)
+For people tracking: ON (removes walls/furniture, shows only people)
+
+
+--- MULTIOBJ BEAMFORMING ---
+
+multiObjBeamForming -1 1 <threshold>
+
+  threshold - lower value detects more separate objects per range/doppler bin
+  0.5 = default (fewer, more confident points)
+  0.3 = more points detected per target (better for hands/fingers)
+
+
+--- PRESET CONFIGS BY USE CASE ---
+
+HAND DETECTION (<=1m, current config as of 2026-06-08):
+  profileCfg 0 60 100 5 30 0 0 99 1 64 6000 0 0 158
+  frameCfg 0 2 16 0 50 1 0
+  cfarFovCfg -1 0 0 1.0
+  cfarFovCfg -1 1 -3.0 3.0
+  Range resolution: ~6 cm | Max range: ~3.8 m | Frame rate: 20 fps
+
+ROOM PRESENCE / PEOPLE (<=6m, default):
+  profileCfg 0 60 347 7 57.14 0 0 70 1 256 5209 0 0 158
+  frameCfg 0 2 16 0 100 1 0
+  cfarFovCfg -1 0 0 8.92
+  cfarFovCfg -1 1 -1 1.00
+  Range resolution: ~4 cm | Max range: ~10.9 m | Frame rate: 10 fps
+
+SHORT RANGE HIGH ACCURACY (<=3m):
+  profileCfg 0 60 347 7 40 0 0 100 1 256 6000 0 0 158
+  frameCfg 0 2 16 0 50 1 0
+  cfarFovCfg -1 0 0 3.0
+  Range resolution: ~4 cm | Frame rate: 20 fps
+
+
+--- DATA OUTPUT FORMAT (TLV frames) ---
+
+Each frame from the data port starts with magic word: 02 01 04 03 06 05 08 07
+Followed by a 40-byte header, then TLV (Type-Length-Value) blocks:
+
+  TLV Type 1  - Detected points: x, y, z, doppler (4x float32 per point)
+  TLV Type 2  - Range profile
+  TLV Type 6  - CPU load statistics
+  TLV Type 7  - Side info: SNR and noise per point (2x int16, units 0.1 dB)
+
+x = left/right in meters (negative=left, positive=right)
+y = depth in meters (distance straight ahead from sensor face)
+z = height in meters (negative=below sensor, positive=above)
+doppler = velocity in m/s (negative=moving away, positive=moving toward)
+
+
+--- PLOT COLOR SCALE ---
+
+Blue   = moving away from sensor (negative doppler)
+White  = stationary
+Red    = moving toward sensor (positive doppler)
+Scale: -2 to +2 m/s (hand detection) or -1 to +1 m/s (people)
+
+
+--- KNOWN ISSUES / TIPS ---
+
+- If points flicker in and out on a still hand: lower cfarCfg threshold or
+  turn OFF clutterRemoval
+- If too many false detections (noise points): raise cfarCfg threshold
+- If GUI shows no points at all: swap the two COM ports and reconnect
+- Must run as Administrator for COM port access on this machine
+- The "Trail frames" slider in the GUI controls point persistence
+  (higher = more history shown, good for slow objects)
+- After changing config, always click "Send Config Now" while connected
+  (no need to disconnect/reconnect)
