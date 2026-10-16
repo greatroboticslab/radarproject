@@ -1,0 +1,6 @@
+# object_name: 
+# object_size: 
+# object_distance: 
+# object_material: 
+timestamp	source	value1	value2
+2026-08-17T13:41:55	doppler	1	

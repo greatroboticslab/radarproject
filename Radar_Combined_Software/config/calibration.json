@@ -1,0 +1,44 @@
+{
+  "metal_amplitude": 7.375359986177594,
+  "calibration_points": [
+    {
+      "amplitude": 5.999097834070452,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 6.403623433317447,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 6.447257261795367,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 6.476317398716506,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 6.473260036446353,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 2.3595972897217763,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 5.212087849248997,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 5.179607974205267,
+      "vwc": 0.0
+    },
+    {
+      "amplitude": 5.45478142540462,
+      "vwc": 0.0
+    }
+  ],
+  "poly_coeffs": null,
+  "notes": "test",
+  "created_at": "2026-07-17T10:12:21"
+}
