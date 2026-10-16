@@ -1,0 +1,80 @@
+IWR6843AOP Radar Distance GUI - Setup Notes
+=============================================
+
+FILES
+-----
+radar_gui.py        - Tkinter GUI, shows live distance readout + log
+radar_reader.py      - Serial/CLI handling, sends config, parses TLV frames
+default_config.cfg   - WORKING config exported from TI mmWave Demo
+                        Visualizer 3.5.0 (platform xWR68xx_AOP), with
+                        calibDcRangeSig enabled for better close-range
+                        (<0.5m) detection.
+requirements.txt     - Python packages needed (pyserial, etc.)
+
+FIRST-TIME SETUP ON A NEW MACHINE
+----------------------------------
+1. Install Python 3.
+2. Install the Silicon Labs CP2105 USB-to-UART driver. Without this,
+   Windows will NOT show COM ports for the board at all.
+3. pip install -r requirements.txt
+4. Plug in the board. It enumerates as TWO COM ports:
+     - "Enhanced COM Port"  -> CLI port (send config commands here)
+     - "Standard COM Port"  -> Data port (binary sensor data streams here)
+   The GUI auto-detects and pre-selects these by description on refresh.
+5. Run: python radar_gui.py
+6. Config file field should default to default_config.cfg. Click
+   "Connect & Start".
+
+TROUBLESHOOTING
+----------------
+- "PermissionError: Access is denied" on a COM port:
+    Something else already has that port open. Common causes:
+      * A previous instance of radar_gui.py still running
+        (check Task Manager / Get-Process python, close it)
+      * TI mmWave Demo Visualizer still connected in a browser tab
+        (click its Disconnect/Stop button, or close the tab -- just
+        navigating away is not enough, Web Serial keeps the lock)
+    Only one program can hold a given COM port at a time.
+
+- "Error: Full configuration must be provided before sensor can be
+   started the first time" on sensorStart:
+    Means one of the earlier config lines was rejected (check the log
+    for "Error: Invalid usage" above it) or a required command is
+    missing from the .cfg (this exact firmware build requires
+    aoaFovCfg, cfarFovCfg, and calibData in addition to the usual
+    commands -- our hand-written first draft config was missing these
+    and kept failing even after a power cycle). Safest fix: use a
+    config actually exported from TI's mmWave Demo Visualizer for your
+    exact board/firmware rather than hand-typing one.
+
+- compRangeBiasAndRxChanPhase "Invalid usage" error:
+    Number of values must match the antenna count from channelCfg.
+    channelCfg 15 7 0 = 4 RX x 3 TX = 12 virtual antennas = 1 rangeBias
+    value + 24 Re/Im values (12 pairs) = 25 numbers total on that line.
+
+- Getting a fresh known-working config from TI's tool:
+    Use https://dev.ti.com/mmwavedemovisualizer (this links to the
+    correct tool version picker). For IWR6843AOP you specifically want
+    Demo Visualizer version 3.5.x with platform "xWR68xx_AOP" --
+    the newer 4.x versions only list AWR294X / AM273x and do NOT
+    support this board. Once connected and streaming there, use its
+    "Save Config to PC" button to export the exact .cfg it used, then
+    point radar_gui.py's config file field at that export.
+
+- Tracking gets unreliable within ~0.5m of the antenna:
+    Largely a physical limitation (TX/RX antenna near-field coupling
+    swamping the real return), not a software bug. Enabling
+    calibDcRangeSig (already done in default_config.cfg) measures and
+    cancels the constant coupling signal over the first ~256 frames,
+    which meaningfully helps -- but keep the area directly in front of
+    the antenna EMPTY for the first ~1 second after clicking Start so
+    calibration learns the right baseline. Expect a hard floor around
+    0.15-0.3m no config can fully overcome.
+
+BOARD IDENTIFICATION (this machine)
+-------------------------------------
+USB bridge: Silicon Labs Dual CP2105
+  Enhanced COM Port (CLI)  -> was COM8
+  Standard COM Port (Data) -> was COM9
+(Port numbers can change on a different PC/USB port -- use the GUI's
+"Refresh Ports" button and let it auto-select by description.)

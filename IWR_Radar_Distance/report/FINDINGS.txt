@@ -1,0 +1,302 @@
+IWR6843AOP mmWave Radar - Distance vs. Target Material
+Test Conditions, Results and Findings
+========================================================================
+Test date: 2026-10-13, approx. 12:02 - 12:23 local time (single session)
+Raw data:  IWR_Radar_Distance\logs\experiment\   (summary.csv + per-trial files)
+Figures:   IWR_Radar_Distance\report\figures\     (fig1 - fig7, PNG, 200 dpi)
+
+
+1. TEST CONDITIONS
+------------------------------------------------------------------------
+Hardware
+  - Radar:        TI IWR6843AOPEVM (60 GHz, antenna-on-package, 3 TX x 4 RX)
+  - Connection:   USB via Silicon Labs CP2105 dual UART
+                  CLI port  = COM8 ("Enhanced"), 115200 baud
+                  Data port = COM9 ("Standard"), 921600 baud
+  - Host:         Windows 10 PC, Python 3.13 + pyserial (custom scripts)
+
+Firmware / configuration
+  - Stock TI mmWave SDK 3.5 Out-of-Box demo (xWR68xx_AOP)
+  - Config exported from TI mmWave Demo Visualizer 3.5.0,
+    scene "best range resolution" (default_config.cfg)
+  - Start frequency 60 GHz, slope 70 MHz/us, 256 ADC samples at 5209 ksps
+      -> range bin width 4.36 cm, max unambiguous range 9.02 m
+  - TDM-MIMO, all 3 TX / 4 RX enabled (channelCfg 15 7 0), 16 chirp loops
+  - Frame period 100 ms (10 frames/s)
+  - Detection: CFAR-CASO in range, 15 dB threshold (range and Doppler),
+    peak grouping on, static clutter removal OFF
+  - Range-bias compensation NOT calibrated (compRangeBiasAndRxChanPhase
+    range bias = 0.0)
+  - ONE CHANGE from the Visualizer export: DC range-signature calibration
+    enabled (calibDcRangeSig -1 1 -5 8 256) to suppress antenna coupling at
+    close range. It averages the first 256 frames after start and subtracts
+    that static signal from range bins -5..+8 (out to ~0.35 m).
+
+Geometry
+  - Radar mounted facing straight down at the desk.
+  - Radar-to-desk distance: 0.51 m (tape measure, radar board face to desk
+    top).
+  - Each box placed centred directly beneath the radar.
+  - Box dimensions (as given). ASSUMPTION: the first dimension listed is the
+    vertical height; please confirm boxes were oriented this way.
+
+      Box         Height   Top surface (L x W)   Top area    Geometric distance
+                                                             radar -> box top
+      Metal       135 mm   95 x 95 mm            9,025 mm2   0.375 m
+      Plastic      45 mm   225 x 155 mm         34,875 mm2   0.465 m
+      Felt         80 mm   100 x 80 mm           8,000 mm2   0.430 m
+      Cardboard    35 mm   65 x 110 mm           7,150 mm2   0.475 m
+
+  - Stacked conditions (second box laid flat, centred on top of the metal box):
+      Cardboard on metal  170 mm total  -> 0.340 m
+      Plastic on metal    180 mm total  -> 0.330 m
+      Felt on metal       215 mm total  -> 0.295 m
+
+Procedure
+  1. Sensor configured once for the whole session; 30 s settle/calibration
+     with the area under the radar empty (301 frames received).
+  2. Baseline: empty desk.
+  3. Single boxes: 3 rounds of metal -> plastic -> felt -> cardboard. The box
+     was removed and re-placed between every trial (repeatability).
+  4. Stacked boxes: 2 trials each of cardboard, plastic, then felt on top of
+     the metal box. Top box re-placed between trials for plastic and felt;
+     cardboard-on-metal trial 2 was run WITHOUT re-placing.
+  5. Final empty-desk baseline (drift check).
+  - Each trial = 15 s capture (~150 frames). 20 trials, 3,011 frames total.
+  - Operator stepped away from the beam before each capture.
+
+Data processing definitions
+  - "Detection": the CFAR detector reported a point within +/-0.10 m of the
+    geometric distance to the box top. If more than one, the highest-SNR
+    point was used.
+  - "Measured height" = (radar's mean desk reading) - (radar's mean box
+    reading). Using the radar's own desk reading as the reference cancels
+    the fixed range offset (Finding 1).
+  - "Peak signal" = the highest value of the frame-averaged range profile
+    within +/-3 bins (+/-13 cm) of the target's expected range. Range profile
+    values converted from the SDK's Q9 log2 format to dB
+    (x 20*log10(2)/512). These are RELATIVE dB, not calibrated radar cross
+    section.
+  - Per-point SNR values reported by the radar were recorded but are not used
+    to compare materials (see Finding 12).
+
+
+2. RESULTS
+------------------------------------------------------------------------
+Per-condition summary
+
+  Condition            Trials  Detect.  Radar reading  Height meas./actual  Peak signal
+  -------------------  ------  -------  -------------  -------------------  -----------
+  Empty desk              2     100 %    0.567 m        -                    45.4 +/- 0.1 dB
+  Metal                   3      99 %    0.436 m        131 / 135 mm         48.7 +/- 1.0 dB
+  Plastic                 3     100 %    0.523 m         44 /  45 mm         47.8 +/- 0.1 dB
+  Cardboard               3     100 %    0.523 m         44 /  35 mm         45.2 +/- 0.2 dB
+  Felt                    3       0 %    not detected   -                    43.3 +/- 1.0 dB
+  Cardboard on metal      2       0 %    not detected   -                    46.3 dB
+  Plastic on metal        2      89 %    0.393 m        174 / 180 mm         48.5 dB
+  Felt on metal           2       0 %    not detected   -                    43.6 dB
+
+Per-trial values
+
+  Condition            Trial  Frames  Detect.  Reading   Peak dB
+  -------------------  -----  ------  -------  --------  -------
+  Empty desk             1     150    100 %    0.5669    45.34
+  Metal                  1     150    100 %    0.4361    49.74
+  Plastic                1     151    100 %    0.5233    47.92
+  Felt                   1     151      0 %    -         44.37
+  Cardboard              1     150    100 %    0.5233    45.45
+  Metal                  2     151    100 %    0.4361    48.78
+  Plastic                2     150    100 %    0.5233    47.73
+  Felt                   2     150      0 %    -         42.80
+  Cardboard              2     151    100 %    0.5233    45.00
+  Metal                  3     151     98 %    0.4361    47.72
+  Plastic                3     150    100 %    0.5233    47.70
+  Felt                   3     150      0 %    -         42.60
+  Cardboard              3     150    100 %    0.5233    45.10
+  Cardboard on metal     1     151      0 %    -         46.28
+  Cardboard on metal     2     151      0 %    -         46.29
+  Plastic on metal       1     150     88 %    0.3925    48.40
+  Plastic on metal       2     151     89 %    0.3925    48.49
+  Felt on metal          1     151      0 %    -         43.34
+  Felt on metal          2     151      0 %    -         43.75
+  Empty desk             2     151    100 %    0.5669    45.46
+
+  Within every trial, every detection of the target fell in the same range
+  bin (standard deviation of the reading = 0).
+
+
+3. FINDINGS
+------------------------------------------------------------------------
+F1. Fixed range offset of about +6 cm
+    The radar read the desk at 0.567 m against a tape-measured 0.51 m
+    (+5.7 cm). Every detected target showed a similar offset relative to its
+    geometric distance: metal +6.1, plastic +5.8, cardboard +4.8, plastic on
+    metal +6.3 cm. The spread between these (1.5 cm) is within one range bin.
+    Likely causes: range-bias compensation not calibrated in this config,
+    and the antenna's electrical reference point not being exactly at the
+    board face. It is a constant offset, so it can be removed by subtracting
+    it, by measuring heights relative to a reference surface (as done here),
+    or with TI's measureRangeBiasAndRxChanPhase calibration procedure.
+
+F2. Relative accuracy within one range bin (Fig. 5)
+    Measured relative to the desk, the box heights came out within 1-9 mm of
+    actual: metal 131 vs 135, plastic 44 vs 45, cardboard 44 vs 35, plastic
+    on metal 174 vs 180 mm. All are within +/- half a range bin
+    (+/-21.8 mm), which is the best this configuration can resolve.
+
+F3. Readings are quantised to 4.36 cm steps; repeatability is exact at
+    that resolution
+    Every detection snapped to a range-bin centre, and each target landed in
+    the same bin in every frame of every trial, including after the box was
+    removed and re-placed. Precision is limited by bin size, not by noise.
+    The start and end empty-desk baselines were identical (0.567 m; 45.34
+    vs 45.46 dB), so there was no measurable drift over the ~20 min session.
+
+F4. Range resolution limits what can be separated (Figs. 2, 5)
+    The cardboard (35 mm) and plastic (45 mm) boxes both read 0.523 m. They
+    are 10 mm apart in height, well under one bin, so the radar cannot tell
+    them apart by distance. Similarly, with cardboard on the metal box the
+    two top surfaces (35 mm apart) merged into a single broad hump in the
+    range profile instead of a sharp peak. The detector then reported
+    nothing (see F7).
+
+F5. Reflection strength by material (Figs. 1, 3)
+    Peak signal ranked metal (48.7 dB) > plastic (47.8) > cardboard (45.2)
+    ~ bare desk (45.4) > felt (43.3). Metal, plastic and cardboard each
+    produced a distinct peak at their top surface.
+    IMPORTANT CAVEAT: signal strength also depends on range and on the size
+    of the top surface, and these differed between boxes. Two comparisons
+    still hold up despite that:
+      - Metal was strongest even though its top area is about 1/4 of the
+        plastic box's.
+      - Felt was weaker than cardboard even though its top is larger and
+        closer to the radar.
+    Metal vs. plastic on material alone is not conclusive from this data.
+
+F6. Felt was never detected and blocks what is behind it (Figs. 1-4, 6)
+    Felt: 0 of 451 frames over 3 placements. Its range profile is flat and
+    smeared (about 42-44 dB from 0.44 to 0.65 m) with no peak, so the CFAR
+    detector, which needs a bin about 15 dB above its neighbours, never
+    fired. The felt also suppressed the desk return under it (desk detected
+    in 0 % of felt frames).
+    Felt on metal: the metal-top return dropped from 48.7 dB (metal alone)
+    to 40.0 and 38.2 dB, a loss of about 9-11 dB (mean ~9.7 dB) from the
+    felt layer. Neither box top was detected. The felt is effectively
+    invisible to this radar AND hides a strong reflector beneath it.
+    Probable mechanism: porous, fibrous material that scatters diffusely and
+    absorbs rather than reflecting from a smooth surface. (Construction of
+    the felt box, solid vs. felt-covered, should be recorded in the report.)
+
+F7. Cardboard is weakly reflective and largely transparent
+    Alone, cardboard was detected reliably (100 %). On top of the metal box,
+    the metal-top bin was still at 46.3 dB, at most ~2.5 dB below metal
+    alone, versus ~9.7 dB for felt. The metal box's multipath ghost (F9) was
+    detected in 79 % of frames THROUGH the cardboard. So cardboard passes
+    most of the signal; its weak top return merged with the metal's (F4) and
+    nothing was detected at the stack top.
+
+F8. Plastic on metal was resolved
+    The plastic top was detected one bin above the metal (0.393 m, 89 % of
+    frames), giving a height of 174 vs 180 mm. Plastic's strong, sharp
+    return is what let the detector separate it. The 11 % of missed frames
+    are attributed to the plastic top being only ~1 bin from the metal top.
+
+F9. Multipath "ghost ladder" from strong reflectors (Fig. 7)
+    Metal and plastic produced repeated false targets farther away than the
+    real box. The ghosts sit at k x (true distance) + offset, k = 2, 3, 4...,
+    which is consistent with the signal bouncing back and forth between the
+    box top and the flat radar board.
+      - Metal: detections at 0.436, 0.785, 1.177, 1.526, 2.006, 2.268 m.
+        Fitted spacing 0.388 m vs true distance 0.375 m.
+      - Plastic: 0.523, 1.003 (in 86 % of frames), 1.483, 2.442 m.
+        Fitted spacing 0.480 m vs true distance 0.465 m.
+      - Cardboard, felt and the bare desk: no ghosts.
+    The spacings match the true distances to within ~3.5 %, within the
+    bin-quantisation uncertainty. Ghosts accounted for almost all of the
+    1,054 detections recorded beyond 1.0 m.
+    Practical impact: ghosts are always farther than the real target, so a
+    "nearest object" reading is not fooled by them, but anything that uses
+    all detections (multi-target tracking, point clouds) would see false
+    objects. Possible mitigations (untested): tilt the radar slightly, add
+    RF absorber around the antenna, or reject detections at integer
+    multiples of a strong near target.
+
+F10. Unexplained returns 4-9 cm beyond the desk surface (Fig. 6)
+    Detections at 0.611 and 0.654 m appeared in 36-94 % of frames whenever a
+    single box sat on the desk, but never with the empty desk. Source not
+    identified. Leading hypothesis: structure beneath or inside the desk top
+    that is normally masked by the strong desk-surface return, and becomes a
+    local peak when a box shadows part of the desk. Not tested further.
+
+F11. Stacks raise the near-range signal
+    In all three stacked conditions, range bins 0.17-0.30 m rose by 5-10 dB
+    compared with the metal box alone, and the rise was nearly identical
+    regardless of the top material (Fig. 2). This points to geometry (a
+    taller object closer to the radar) rather than material. It also raises
+    the CFAR detector's local noise estimate near the target, making
+    detection harder.
+
+F12. The radar's per-point SNR is not a material measure
+    The radar reported lower SNR for metal-box points (12-17 dB) than for
+    the bare desk (35 dB) even though the metal's raw return was stronger.
+    The SNR is computed against a LOCAL noise estimate, which other nearby
+    returns inflate. The range-profile peak was used as the
+    signal-strength measure instead.
+
+F13. Undetected targets are in the data but below the detector threshold
+    For felt and cardboard-on-metal, energy is visible in the range profile;
+    it is the fixed 15 dB CFAR threshold and peak-shape requirement that
+    rejects them. A lower threshold or a different detector might detect
+    them, at the cost of more false alarms (untested).
+
+F14. Consequence for the live distance GUI
+    The GUI shows the NEAREST detected object. That is correct for metal,
+    plastic, cardboard and plastic-on-metal. But when the real target is
+    undetected it does not say "no target": it shows the next detection
+    behind it. Felt read ~0.61-0.65 m (beyond the desk), cardboard-on-metal
+    ~0.78 m (the metal box's ghost), felt-on-metal ~0.61-0.88 m. A user
+    could mistake these for real distances.
+
+
+4. LIMITATIONS
+------------------------------------------------------------------------
+  - Box orientation assumed (first listed dimension = height).
+  - Single mount height (0.51 m), boxes centred only; no lateral offsets,
+    tilt, or angle-of-incidence variation.
+  - Range-bias compensation uncalibrated (F1); tape reference point (board
+    face) approximate.
+  - Small trial counts (3 per single box, 2 per stack). Because readings
+    are quantised to whole range bins, within-trial standard deviations
+    are 0 and do not reflect sub-bin accuracy.
+  - Material comparisons are confounded by different top-surface areas and
+    distances (F5). Box wall thickness, construction and moisture content
+    were not recorded.
+  - Cardboard-on-metal trial 2 was not re-placed.
+  - Detection rate depends on the chosen window (+/-10 cm around geometric
+    distance) and on the fixed CFAR settings.
+  - DC range-signature calibration covers out to ~0.35 m. The felt-on-metal
+    top (~0.35 m radar reading) sits at the edge of that region. Calibration
+    only subtracts the empty-scene signal, but behaviour very close to the
+    radar may be affected.
+  - Indoor desk environment; objects under or around the desk were not
+    controlled (see F10).
+
+
+5. FIGURE INDEX
+------------------------------------------------------------------------
+  fig1_range_profile_single_boxes.png  Range profile, each box alone vs empty desk
+  fig2_range_profile_stacked.png       Range profile, stacked boxes vs metal alone
+  fig3_signal_strength_by_material.png Peak signal per material, mean +/- 1 SD
+  fig4_detection_rate.png              Detection rate for all 8 conditions
+  fig5_measured_vs_actual_height.png   Measured vs actual height, +/- half-bin band
+  fig6_detection_locations.png         Where detections landed (0.2-1.0 m)
+  fig7_multipath_ghost_ladder.png      Ghost targets vs predicted bounce ranges
+
+
+6. DATA FILES (logs\experiment\)
+------------------------------------------------------------------------
+  summary.csv                       One row per trial (all metrics above)
+  <condition>_t<n>_<time>_points.csv Every detected point, every frame:
+                                     x, y, z, velocity, range, SNR, noise
+  <condition>_t<n>_<time>_profile.csv Frame-averaged range profile per bin
+  Scripts: experiment.py (capture), make_report_figures.py (figures)
